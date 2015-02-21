@@ -1,9 +1,6 @@
 package scala.compat.java8;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.*;
 
 import static java.util.concurrent.TimeUnit.*;
 import static org.junit.Assert.*;
@@ -249,17 +246,34 @@ public class FutureConvertersTest {
     final CompletionStage<String> cs = toJava(p.future());
     final CountDownLatch latch = new CountDownLatch(1);
     final CompletionStage<String> second = cs.thenCompose(x -> {
-      try {
-        assertTrue("latch must succeed", latch.await(1, SECONDS));
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-      return CompletableFuture.completedFuture(x);
+        try {
+            assertTrue("latch must succeed", latch.await(1, SECONDS));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return CompletableFuture.completedFuture(x);
     });
     p.success("Hello");
     latch.countDown();
     assertEquals("Hello", second.toCompletableFuture().get());
   }
+
+    @Test
+    public void testToJavaThenComposeWithToJavaThenAccept() throws InterruptedException,
+            ExecutionException, TimeoutException {
+        final Promise<String> p1 = promise();
+        final CompletionStage<String> cs1 = toJava(p1.future());
+        final CompletableFuture future = new CompletableFuture();
+
+        final CompletionStage<String> second = CompletableFuture.supplyAsync(() -> "Hello").thenCompose(x -> cs1);
+
+        second.thenAccept(x -> {
+            future.complete("Hello");
+        });
+
+        p1.success("Hello");
+        assertEquals("Hello", future.toCompletableFuture().get(1000, MILLISECONDS));
+    }
 
   @Test
   public void testToJavaWhenComplete() throws InterruptedException,
